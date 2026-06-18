@@ -29,7 +29,7 @@ const crypto = require("node:crypto");
 // ============================================================
 const CONFIG = {
   // 服务器配置
-  PORT: parseInt(process.env.PORT || "3000", 10),
+  PORT: parseInt(process.env.PORT || "3001", 10),
   HOST: process.env.HOST || "0.0.0.0",
   MAX_PLAYERS: parseInt(process.env.MAX_PLAYERS || "50", 10),
   
