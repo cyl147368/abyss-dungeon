@@ -1635,3 +1635,254 @@ document.addEventListener('DOMContentLoaded', () => {
   LoadingScreen.init();
   LoadingScreen.setProgress(10, '正在加载资源...');
 });
+
+
+// ============================================================
+// 网络统计 Network Statistics
+// ============================================================
+
+const NetworkStats = {
+  ping: 0,
+  lastPingTime: 0,
+  pingInterval: null,
+  
+  init() {
+    // 创建ping显示元素
+    const pingDisplay = document.createElement('div');
+    pingDisplay.id = 'pingDisplay';
+    pingDisplay.className = 'ping-display';
+    pingDisplay.innerHTML = '延迟: <span id="pingValue">--</span>ms';
+    document.body.appendChild(pingDisplay);
+    
+    // 定期测量延迟
+    this.pingInterval = setInterval(() => this.measurePing(), 5000);
+  },
+  
+  measurePing() {
+    if (!gameState.ws || gameState.ws.readyState !== WebSocket.OPEN) return;
+    
+    this.lastPingTime = Date.now();
+    gameState.ws.send(JSON.stringify({ type: 'ping' }));
+  },
+  
+  updatePing(pingTime) {
+    this.ping = pingTime;
+    const pingElement = document.getElementById('pingValue');
+    if (pingElement) {
+      pingElement.textContent = pingTime;
+      
+      // 根据延迟设置颜色
+      if (pingTime < 50) {
+        pingElement.style.color = '#2ecc71'; // 绿色 - 良好
+      } else if (pingTime < 100) {
+        pingElement.style.color = '#f39c12'; // 黄色 - 一般
+      } else {
+        pingElement.style.color = '#e74c3c'; // 红色 - 差
+      }
+    }
+  },
+  
+  destroy() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+  },
+};
+
+// 添加ping显示样式
+const pingStyles = document.createElement('style');
+pingStyles.textContent = `
+  .ping-display {
+    position: fixed;
+    bottom: 84px;
+    right: 16px;
+    z-index: 100;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.5);
+    padding: 4px 8px;
+    border-radius: 2px;
+    border: 1px solid var(--border-stone);
+  }
+  
+  #pingValue {
+    font-weight: 700;
+  }
+`;
+document.head.appendChild(pingStyles);
+
+// 在连接成功后初始化
+const originalConnectToServer = connectToServer;
+connectToServer = function(name, classId) {
+  originalConnectToServer(name, classId);
+  
+  // 等待连接成功后初始化网络统计
+  const checkConnection = setInterval(() => {
+    if (gameState.connected) {
+      NetworkStats.init();
+      clearInterval(checkConnection);
+    }
+  }, 100);
+};
+
+
+// ============================================================
+// 错误处理系统 Error Handling System
+// ============================================================
+
+const ErrorHandler = {
+  errors: [],
+  maxErrors: 50,
+  
+  init() {
+    // 捕获未处理的错误
+    window.addEventListener('error', (event) => {
+      this.logError('JavaScript错误', event.message, event.filename, event.lineno);
+    });
+    
+    // 捕获未处理的Promise错误
+    window.addEventListener('unhandledrejection', (event) => {
+      this.logError('Promise错误', event.reason?.message || '未知错误');
+    });
+    
+    // 创建错误显示容器
+    this.createErrorContainer();
+  },
+  
+  createErrorContainer() {
+    const container = document.createElement('div');
+    container.id = 'errorContainer';
+    container.className = 'error-container';
+    document.body.appendChild(container);
+  },
+  
+  logError(type, message, file = '', line = 0) {
+    const error = {
+      type,
+      message,
+      file,
+      line,
+      timestamp: Date.now(),
+    };
+    
+    this.errors.push(error);
+    if (this.errors.length > this.maxErrors) {
+      this.errors.shift();
+    }
+    
+    console.error(`[${type}] ${message}`, file ? `at ${file}:${line}` : '');
+    
+    // 显示错误通知
+    this.showErrorNotification(type, message);
+  },
+  
+  showErrorNotification(type, message) {
+    const container = document.getElementById('errorContainer');
+    if (!container) return;
+    
+    const notification = document.createElement('div');
+    notification.className = 'error-notification';
+    notification.innerHTML = `
+      <span class="error-icon">⚠️</span>
+      <div class="error-content">
+        <div class="error-type">${type}</div>
+        <div class="error-message">${message}</div>
+      </div>
+      <span class="error-close">✕</span>
+    `;
+    
+    // 点击关闭
+    notification.querySelector('.error-close').addEventListener('click', () => {
+      notification.remove();
+    });
+    
+    container.appendChild(notification);
+    
+    // 自动关闭
+    setTimeout(() => {
+      notification.remove();
+    }, 5000);
+  },
+  
+  getErrors() {
+    return [...this.errors];
+  },
+  
+  clearErrors() {
+    this.errors = [];
+  },
+};
+
+// 添加错误通知样式
+const errorStyles = document.createElement('style');
+errorStyles.textContent = `
+  .error-container {
+    position: fixed;
+    top: 80px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 300px;
+  }
+  
+  .error-notification {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(192, 57, 43, 0.95);
+    border: 1px solid rgba(231, 76, 60, 0.5);
+    border-radius: 4px;
+    padding: 12px;
+    animation: errorSlideIn 0.3s ease-out;
+  }
+  
+  @keyframes errorSlideIn {
+    from {
+      opacity: 0;
+      transform: translateX(50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  .error-icon {
+    font-size: 18px;
+  }
+  
+  .error-content {
+    flex: 1;
+  }
+  
+  .error-type {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 2px;
+  }
+  
+  .error-message {
+    font-size: 13px;
+    color: white;
+    font-weight: 500;
+  }
+  
+  .error-close {
+    cursor: pointer;
+    color: rgba(255,255,255,0.7);
+    font-size: 14px;
+  }
+  
+  .error-close:hover {
+    color: white;
+  }
+`;
+document.head.appendChild(errorStyles);
+
+// 在DOMContentLoaded时初始化
+document.addEventListener('DOMContentLoaded', () => {
+  ErrorHandler.init();
+});
