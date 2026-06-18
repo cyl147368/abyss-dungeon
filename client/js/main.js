@@ -1,344 +1,683 @@
 /**
- * 深渊地牢 - 游戏客户端
- * Abyss Dungeon - Game Client
+ * ============================================================
+ * 深渊地牢 - 游戏客户端 v2.0
+ * Abyss Dungeon - Game Client v2.0
+ * ============================================================
+ * 
+ * @author Abyss Dungeon Team
+ * @version 2.0.0
+ * @license MIT
+ * ============================================================
  */
 
 // ============================================================
-// 全局状态 Global State
+// 全局配置 Global Configuration
 // ============================================================
-const state = {
-  connected: false,
-  playerId: null,
-  players: [],
-  monsters: [],
-  projectiles: [],
-  lootDrops: [],
-  dungeon: null,
-  classes: null,
-  selectedClass: null,
-  camera: { x: 0, y: 0 },
-  input: { up: false, down: false, left: false, right: false, attack: false, skill: -1, mouseX: 0, mouseY: 0 },
-  inventoryOpen: false,
-  leaderboardOpen: false,
-  chatFocused: false,
-  ws: null,
-  tileSize: 32,
-  localPlayer: null,
+const CLIENT_CONFIG = {
+  // 画布配置
+  CANVAS: {
+    BG_COLOR: "#0a0a0f",
+    FOG_SIZE: 60,
+  },
+  
+  // 游戏配置
+  GAME: {
+    TILE_SIZE: 32,
+    PLAYER_RADIUS: 14,
+    MONSTER_HITBOX: 8,
+    PROJECTILE_HITBOX: 4,
+    LOOT_PICKUP_RANGE: 30,
+  },
+  
+  // UI配置
+  UI: {
+    MINIMAP_WIDTH: 180,
+    MINIMAP_HEIGHT: 140,
+    CHAT_MAX_MESSAGES: 50,
+    TOAST_DURATION: 2000,
+  },
+  
+  // 网络配置
+  NETWORK: {
+    RECONNECT_DELAY: 3000,
+    MAX_RECONNECT_ATTEMPTS: 5,
+    INPUT_SEND_RATE: 50, // ms
+  },
 };
 
 // ============================================================
-// DOM 元素 DOM Elements
+// 游戏状态 Game State
 // ============================================================
-const $ = (id) => document.getElementById(id);
+const gameState = {
+  // 连接状态
+  connected: false,
+  reconnectAttempts: 0,
+  
+  // 玩家数据
+  playerId: null,
+  localPlayer: null,
+  players: [],
+  
+  // 游戏世界
+  dungeon: null,
+  monsters: [],
+  projectiles: [],
+  lootDrops: [],
+  
+  // 职业数据
+  classes: null,
+  selectedClass: null,
+  
+  // 相机
+  camera: { x: 0, y: 0 },
+  
+  // 输入状态
+  input: {
+    up: false,
+    down: false,
+    left: false,
+    right: false,
+    attack: false,
+    skill: -1,
+    mouseX: 0,
+    mouseY: 0,
+  },
+  
+  // UI状态
+  inventoryOpen: false,
+  leaderboardOpen: false,
+  chatFocused: false,
+  
+  // WebSocket
+  ws: null,
+  
+  // 性能监控
+  fps: 0,
+  frameCount: 0,
+  lastFpsUpdate: Date.now(),
+};
+
+// ============================================================
+// DOM 工具函数 DOM Utilities
+// ============================================================
+const $ = (selector) => document.getElementById(selector);
+const $$ = (selector) => document.querySelectorAll(selector);
 
 // ============================================================
 // 登录界面 Login Screen
 // ============================================================
-function initLogin() {
-  const classCards = document.querySelectorAll('.class-card');
+
+/**
+ * 初始化登录界面
+ */
+function initLoginScreen() {
+  const classCards = $$('.class-card');
   const startBtn = $('startBtn');
   const nameInput = $('playerName');
 
+  // 职业选择事件
   classCards.forEach(card => {
     card.addEventListener('click', () => {
       classCards.forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
-      state.selectedClass = card.dataset.class;
-      checkReady();
+      gameState.selectedClass = card.dataset.class;
+      validateLoginForm();
     });
   });
 
-  nameInput.addEventListener('input', checkReady);
+  // 名字输入事件
+  nameInput.addEventListener('input', validateLoginForm);
   nameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !startBtn.disabled) startGame();
+    if (e.key === 'Enter' && !startBtn.disabled) {
+      startGame();
+    }
   });
 
-  function checkReady() {
-    startBtn.disabled = !(nameInput.value.trim() && state.selectedClass);
-  }
-
+  // 开始按钮事件
   startBtn.addEventListener('click', startGame);
+
+  // 自动聚焦名字输入框
+  nameInput.focus();
 }
 
+/**
+ * 验证登录表单
+ */
+function validateLoginForm() {
+  const nameInput = $('playerName');
+  const startBtn = $('startBtn');
+  const isValid = nameInput.value.trim().length > 0 && gameState.selectedClass;
+  startBtn.disabled = !isValid;
+}
+
+/**
+ * 开始游戏
+ */
 function startGame() {
   const name = $('playerName').value.trim();
-  if (!name || !state.selectedClass) return;
+  if (!name || !gameState.selectedClass) return;
 
   // 切换到游戏界面
   $('loginScreen').classList.remove('active');
   $('gameScreen').classList.add('active');
 
-  // 初始化游戏
+  // 初始化游戏系统
   initCanvas();
-  connectWebSocket(name, state.selectedClass);
   initInputHandlers();
+  connectToServer(name, gameState.selectedClass);
+  
+  // 启动渲染循环
+  requestAnimationFrame(renderLoop);
+  
+  // 启动输入发送循环
+  setInterval(sendInput, CLIENT_CONFIG.NETWORK.INPUT_SEND_RATE);
 }
 
 // ============================================================
-// 画布初始化 Canvas Init
+// 画布初始化 Canvas Initialization
 // ============================================================
 let canvas, ctx, minimapCanvas, minimapCtx;
 
+/**
+ * 初始化游戏画布
+ */
 function initCanvas() {
   canvas = $('gameCanvas');
   ctx = canvas.getContext('2d');
   minimapCanvas = $('minimapCanvas');
   minimapCtx = minimapCanvas.getContext('2d');
 
-  function resize() {
+  // 设置画布尺寸
+  function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
-  window.addEventListener('resize', resize);
-  resize();
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // 禁用右键菜单
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 // ============================================================
-// WebSocket 连接 WebSocket Connection
+// 网络连接 Network Connection
 // ============================================================
-function connectWebSocket(name, classId) {
+
+/**
+ * 连接到游戏服务器
+ * @param {string} name - 玩家名字
+ * @param {string} classId - 职业ID
+ */
+function connectToServer(name, classId) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(`${protocol}//${location.host}`);
+  const wsUrl = `${protocol}//${location.host}`;
 
-  ws.onopen = () => {
-    state.connected = true;
-    ws.send(JSON.stringify({ type: 'join', name, classId }));
+  console.log(`连接到服务器: ${wsUrl}`);
+  gameState.ws = new WebSocket(wsUrl);
+
+  // 连接成功
+  gameState.ws.onopen = () => {
+    gameState.connected = true;
+    gameState.reconnectAttempts = 0;
+    console.log('已连接到服务器');
+    
+    // 发送加入请求
+    gameState.ws.send(JSON.stringify({
+      type: 'join',
+      name,
+      classId,
+    }));
   };
 
-  ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    handleMessage(msg);
+  // 接收消息
+  gameState.ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleServerMessage(msg);
+    } catch (e) {
+      console.error('解析消息失败:', e);
+    }
   };
 
-  ws.onclose = () => {
-    state.connected = false;
-    console.log('连接断开');
+  // 连接关闭
+  gameState.ws.onclose = (event) => {
+    gameState.connected = false;
+    console.log('连接断开:', event.code, event.reason);
+    
+    // 尝试重连
+    if (gameState.reconnectAttempts < CLIENT_CONFIG.NETWORK.MAX_RECONNECT_ATTEMPTS) {
+      gameState.reconnectAttempts++;
+      console.log(`尝试重连 (${gameState.reconnectAttempts}/${CLIENT_CONFIG.NETWORK.MAX_RECONNECT_ATTEMPTS})...`);
+      setTimeout(() => connectToServer(name, classId), CLIENT_CONFIG.NETWORK.RECONNECT_DELAY);
+    }
   };
 
-  ws.onerror = (err) => {
-    console.error('WebSocket error:', err);
+  // 连接错误
+  gameState.ws.onerror = (error) => {
+    console.error('WebSocket错误:', error);
   };
-
-  state.ws = ws;
 }
 
-function handleMessage(msg) {
+/**
+ * 处理服务器消息
+ * @param {Object} msg - 消息对象
+ */
+function handleServerMessage(msg) {
   switch (msg.type) {
     case 'welcome':
-      state.playerId = msg.playerId;
-      state.dungeon = msg.dungeon;
-      state.classes = msg.classes;
-      setupSkillIcons();
+      handleWelcome(msg);
       break;
 
     case 'snapshot':
-      state.players = msg.data.players;
-      state.monsters = msg.data.monsters;
-      state.projectiles = msg.data.projectiles;
-      state.lootDrops = msg.data.loot;
-      state.localPlayer = state.players.find(p => p.id === state.playerId);
-      updateHUD();
-      updateInventoryUI();
-      updateLeaderboard();
+      handleSnapshot(msg.data);
       break;
 
     case 'chat':
-      addChatMessage(msg.text, msg.msgType, msg.color);
+      handleChatMessage(msg);
       break;
+
+    default:
+      console.warn('未知消息类型:', msg.type);
   }
+}
+
+/**
+ * 处理欢迎消息
+ * @param {Object} msg - 欢迎消息
+ */
+function handleWelcome(msg) {
+  gameState.playerId = msg.playerId;
+  gameState.dungeon = msg.dungeon;
+  gameState.classes = msg.classes;
+  
+  console.log('欢迎加入游戏! 玩家ID:', msg.playerId);
+  
+  // 设置技能图标
+  setupSkillIcons();
+}
+
+/**
+ * 处理状态快照
+ * @param {Object} data - 快照数据
+ */
+function handleSnapshot(data) {
+  gameState.players = data.players;
+  gameState.monsters = data.monsters;
+  gameState.projectiles = data.projectiles;
+  gameState.lootDrops = data.loot;
+  
+  // 更新本地玩家引用
+  gameState.localPlayer = gameState.players.find(p => p.id === gameState.playerId);
+  
+  // 更新UI
+  updateHUD();
+  updateInventoryUI();
+  updateLeaderboard();
+}
+
+/**
+ * 处理聊天消息
+ * @param {Object} msg - 聊天消息
+ */
+function handleChatMessage(msg) {
+  addChatMessage(msg.text, msg.msgType, msg.color);
 }
 
 // ============================================================
 // 输入处理 Input Handling
 // ============================================================
+
+/**
+ * 初始化输入处理器
+ */
 function initInputHandlers() {
-  document.addEventListener('keydown', (e) => {
-    if (state.chatFocused) return;
-
-    switch (e.key.toLowerCase()) {
-      case 'w': case 'arrowup': state.input.up = true; break;
-      case 's': case 'arrowdown': state.input.down = true; break;
-      case 'a': case 'arrowleft': state.input.left = true; break;
-      case 'd': case 'arrowright': state.input.right = true; break;
-      case 'q': state.input.skill = 0; break;
-      case 'e': state.input.skill = 1; break;
-      case 'r': usePotion(); break;
-      case 'i': toggleInventory(); break;
-      case 'tab':
-        e.preventDefault();
-        toggleLeaderboard();
-        break;
-      case 'enter':
-        e.preventDefault();
-        toggleChat();
-        break;
-    }
-    sendInput();
-  });
-
-  document.addEventListener('keyup', (e) => {
-    switch (e.key.toLowerCase()) {
-      case 'w': case 'arrowup': state.input.up = false; break;
-      case 's': case 'arrowdown': state.input.down = false; break;
-      case 'a': case 'arrowleft': state.input.left = false; break;
-      case 'd': case 'arrowright': state.input.right = false; break;
-    }
-    sendInput();
-  });
-
-  canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0) {
-      state.input.attack = true;
-      sendInput();
-    }
-  });
-
-  canvas.addEventListener('mouseup', (e) => {
-    if (e.button === 0) {
-      state.input.attack = false;
-      sendInput();
-    }
-  });
-
-  canvas.addEventListener('mousemove', (e) => {
-    state.input.mouseX = e.clientX + state.camera.x;
-    state.input.mouseY = e.clientY + state.camera.y;
-  });
-
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
+  // 键盘按下
+  document.addEventListener('keydown', handleKeyDown);
+  
+  // 键盘释放
+  document.addEventListener('keyup', handleKeyUp);
+  
+  // 鼠标按下
+  canvas.addEventListener('mousedown', handleMouseDown);
+  
+  // 鼠标释放
+  canvas.addEventListener('mouseup', handleMouseUp);
+  
+  // 鼠标移动
+  canvas.addEventListener('mousemove', handleMouseMove);
+  
   // 技能栏点击
-  for (let i = 0; i < 3; i++) {
-    const el = $('skill' + (i + 1));
-    if (el) {
-      el.addEventListener('click', () => {
-        state.input.skill = i;
-        sendInput();
+  setupSkillBarClicks();
+  
+  // 药水槽点击
+  $('potionSlot')?.addEventListener('click', usePotion);
+  
+  // 聊天输入框事件
+  setupChatInput();
+}
+
+/**
+ * 处理键盘按下事件
+ */
+function handleKeyDown(e) {
+  // 聊天输入时忽略游戏按键
+  if (gameState.chatFocused) return;
+
+  switch (e.key.toLowerCase()) {
+    case 'w':
+    case 'arrowup':
+      gameState.input.up = true;
+      break;
+    case 's':
+    case 'arrowdown':
+      gameState.input.down = true;
+      break;
+    case 'a':
+    case 'arrowleft':
+      gameState.input.left = true;
+      break;
+    case 'd':
+    case 'arrowright':
+      gameState.input.right = true;
+      break;
+    case 'q':
+      gameState.input.skill = 0;
+      break;
+    case 'e':
+      gameState.input.skill = 1;
+      break;
+    case 'r':
+      usePotion();
+      break;
+    case 'i':
+      toggleInventory();
+      break;
+    case 'tab':
+      e.preventDefault();
+      toggleLeaderboard();
+      break;
+    case 'enter':
+      e.preventDefault();
+      toggleChat();
+      break;
+  }
+}
+
+/**
+ * 处理键盘释放事件
+ */
+function handleKeyUp(e) {
+  switch (e.key.toLowerCase()) {
+    case 'w':
+    case 'arrowup':
+      gameState.input.up = false;
+      break;
+    case 's':
+    case 'arrowdown':
+      gameState.input.down = false;
+      break;
+    case 'a':
+    case 'arrowleft':
+      gameState.input.left = false;
+      break;
+    case 'd':
+    case 'arrowright':
+      gameState.input.right = false;
+      break;
+  }
+}
+
+/**
+ * 处理鼠标按下事件
+ */
+function handleMouseDown(e) {
+  if (e.button === 0) { // 左键
+    gameState.input.attack = true;
+  }
+}
+
+/**
+ * 处理鼠标释放事件
+ */
+function handleMouseUp(e) {
+  if (e.button === 0) { // 左键
+    gameState.input.attack = false;
+  }
+}
+
+/**
+ * 处理鼠标移动事件
+ */
+function handleMouseMove(e) {
+  gameState.input.mouseX = e.clientX + gameState.camera.x;
+  gameState.input.mouseY = e.clientY + gameState.camera.y;
+}
+
+/**
+ * 设置技能栏点击事件
+ */
+function setupSkillBarClicks() {
+  for (let i = 1; i <= 3; i++) {
+    const skillEl = $('skill' + i);
+    if (skillEl) {
+      skillEl.addEventListener('click', () => {
+        gameState.input.skill = i - 1;
       });
     }
   }
-
-  // 药水槽点击
-  $('potionSlot')?.addEventListener('click', usePotion);
 }
 
+/**
+ * 设置聊天输入框事件
+ */
+function setupChatInput() {
+  const chatInput = $('chatInput');
+  if (!chatInput) return;
+
+  chatInput.addEventListener('focus', () => {
+    gameState.chatFocused = true;
+  });
+
+  chatInput.addEventListener('blur', () => {
+    gameState.chatFocused = false;
+  });
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      toggleChat();
+    }
+    if (e.key === 'Escape') {
+      chatInput.value = '';
+      chatInput.blur();
+      gameState.chatFocused = false;
+    }
+    // 阻止游戏按键
+    e.stopPropagation();
+  });
+}
+
+/**
+ * 发送输入到服务器
+ */
 function sendInput() {
-  if (state.ws?.readyState === 1) {
-    state.ws.send(JSON.stringify({ type: 'input', input: state.input }));
+  if (gameState.ws?.readyState === WebSocket.OPEN) {
+    gameState.ws.send(JSON.stringify({
+      type: 'input',
+      input: gameState.input,
+    }));
   }
 }
 
 // ============================================================
 // 药水使用 Potion Usage
 // ============================================================
+
+/**
+ * 使用药水
+ */
 function usePotion() {
-  if (!state.localPlayer) return;
-  const potionIdx = state.localPlayer.inventory?.findIndex(i => i.type === 'potion');
-  if (potionIdx >= 0) {
-    state.ws?.send(JSON.stringify({ type: 'useItem', index: potionIdx }));
+  if (!gameState.localPlayer) return;
+  
+  const potionIndex = gameState.localPlayer.inventory?.findIndex(
+    item => item.type === 'potion'
+  );
+  
+  if (potionIndex >= 0) {
+    gameState.ws?.send(JSON.stringify({
+      type: 'useItem',
+      index: potionIndex,
+    }));
   }
 }
 
 // ============================================================
-// 聊天 Chat
+// 聊天系统 Chat System
 // ============================================================
+
+/**
+ * 切换聊天输入状态
+ */
 function toggleChat() {
-  const input = $('chatInput');
-  if (state.chatFocused) {
-    if (input.value.trim()) {
-      state.ws?.send(JSON.stringify({ type: 'chat', text: input.value.trim() }));
+  const chatInput = $('chatInput');
+  if (!chatInput) return;
+
+  if (gameState.chatFocused) {
+    // 发送消息
+    const text = chatInput.value.trim();
+    if (text) {
+      gameState.ws?.send(JSON.stringify({
+        type: 'chat',
+        text,
+      }));
     }
-    input.value = '';
-    input.blur();
-    state.chatFocused = false;
+    chatInput.value = '';
+    chatInput.blur();
+    gameState.chatFocused = false;
   } else {
-    input.focus();
-    state.chatFocused = true;
+    // 打开聊天
+    chatInput.focus();
+    gameState.chatFocused = true;
   }
 }
 
-$('chatInput')?.addEventListener('focus', () => { state.chatFocused = true; });
-$('chatInput')?.addEventListener('blur', () => { state.chatFocused = false; });
-$('chatInput')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    toggleChat();
-  }
-  if (e.key === 'Escape') {
-    $('chatInput').value = '';
-    $('chatInput').blur();
-    state.chatFocused = false;
-  }
-});
-
+/**
+ * 添加聊天消息到界面
+ * @param {string} text - 消息文本
+ * @param {string} type - 消息类型 (system/player)
+ * @param {string} color - 颜色
+ */
 function addChatMessage(text, type, color) {
   const container = $('chatMessages');
-  const div = document.createElement('div');
-  div.className = `chat-msg ${type}`;
-  div.textContent = text;
-  if (color) div.style.color = color;
-  container.appendChild(div);
+  if (!container) return;
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `chat-msg ${type}`;
+  messageDiv.textContent = text;
+  
+  if (color) {
+    messageDiv.style.color = color;
+  }
+
+  container.appendChild(messageDiv);
   container.scrollTop = container.scrollHeight;
 
   // 限制消息数量
-  while (container.children.length > 50) {
+  while (container.children.length > CLIENT_CONFIG.UI.CHAT_MAX_MESSAGES) {
     container.removeChild(container.firstChild);
   }
 }
 
 // ============================================================
-// 背包 Inventory
+// 背包系统 Inventory System
 // ============================================================
+
+/**
+ * 切换背包界面
+ */
 function toggleInventory() {
-  state.inventoryOpen = !state.inventoryOpen;
-  $('inventoryPanel').classList.toggle('open', state.inventoryOpen);
+  gameState.inventoryOpen = !gameState.inventoryOpen;
+  $('inventoryPanel')?.classList.toggle('open', gameState.inventoryOpen);
 }
 
-$('closeInventory')?.addEventListener('click', () => {
-  state.inventoryOpen = false;
-  $('inventoryPanel').classList.remove('open');
-});
-
+/**
+ * 更新背包UI
+ */
 function updateInventoryUI() {
-  const player = state.localPlayer;
+  const player = gameState.localPlayer;
   if (!player) return;
 
   // 更新装备显示
-  const equipMap = { weapon: 'equipWeapon', armor: 'equipArmor', accessory: 'equipAccessory' };
-  for (const [slot, elId] of Object.entries(equipMap)) {
-    const el = $(elId);
-    if (!el) continue;
-    const item = player.equipment?.[slot];
-    el.querySelector('.equip-item').textContent = item ? item.name : '-';
-    el.style.borderColor = item ? (item.rarityColor || '#2a2520') : '#2a2520';
-  }
+  updateEquipmentDisplay(player);
+  
+  // 更新物品格子
+  updateInventoryGrid(player);
+}
 
-  // 更新背包格子
+/**
+ * 更新装备显示
+ */
+function updateEquipmentDisplay(player) {
+  const equipmentSlots = {
+    weapon: 'equipWeapon',
+    armor: 'equipArmor',
+    accessory: 'equipAccessory',
+  };
+
+  for (const [slot, elementId] of Object.entries(equipmentSlots)) {
+    const element = $(elementId);
+    if (!element) continue;
+
+    const item = player.equipment?.[slot];
+    const itemDisplay = element.querySelector('.equip-item');
+    
+    if (itemDisplay) {
+      itemDisplay.textContent = item ? item.name : '-';
+    }
+    
+    element.style.borderColor = item ? (item.rarityColor || '#2a2520') : '#2a2520';
+  }
+}
+
+/**
+ * 更新物品格子
+ */
+function updateInventoryGrid(player) {
   const grid = $('inventoryGrid');
   if (!grid) return;
 
   grid.innerHTML = '';
   const items = player.inventory || [];
-  for (let i = 0; i < Math.max(16, items.length); i++) {
+  const slotCount = Math.max(16, items.length);
+
+  for (let i = 0; i < slotCount; i++) {
     const slot = document.createElement('div');
     slot.className = 'inv-slot';
 
     if (i < items.length) {
       const item = items[i];
-      const icons = { weapon: '⚔️', armor: '🛡️', potion: '🧪', accessory: '💎' };
+      const icons = {
+        weapon: '⚔️',
+        armor: '🛡️',
+        potion: '🧪',
+        accessory: '💎',
+      };
+
       slot.innerHTML = `
         <span class="item-icon">${icons[item.type] || '📦'}</span>
         <span class="item-name" style="color:${item.rarityColor || '#a09880'}">${item.name}</span>
         ${item.count > 1 ? `<span class="item-count">x${item.count}</span>` : ''}
       `;
+      
       slot.style.borderColor = item.rarityColor || '#2a2520';
 
-      // 点击装备/使用
+      // 点击事件
       slot.addEventListener('click', () => {
         if (item.type === 'potion') {
-          state.ws?.send(JSON.stringify({ type: 'useItem', index: i }));
+          gameState.ws?.send(JSON.stringify({ type: 'useItem', index: i }));
         } else if (['weapon', 'armor', 'accessory'].includes(item.type)) {
-          state.ws?.send(JSON.stringify({ type: 'equip', index: i }));
+          gameState.ws?.send(JSON.stringify({ type: 'equip', index: i }));
         }
       });
     }
@@ -348,59 +687,73 @@ function updateInventoryUI() {
 }
 
 // ============================================================
-// 排行榜 Leaderboard
+// 排行榜系统 Leaderboard System
 // ============================================================
+
+/**
+ * 切换排行榜显示
+ */
 function toggleLeaderboard() {
-  state.leaderboardOpen = !state.leaderboardOpen;
-  $('leaderboard').classList.toggle('open', state.leaderboardOpen);
+  gameState.leaderboardOpen = !gameState.leaderboardOpen;
+  $('leaderboard')?.classList.toggle('open', gameState.leaderboardOpen);
 }
 
+/**
+ * 更新排行榜
+ */
 function updateLeaderboard() {
   const list = $('leaderboardList');
-  if (!list || !state.leaderboardOpen) return;
+  if (!list || !gameState.leaderboardOpen) return;
 
-  const sorted = [...state.players].sort((a, b) => b.kills - a.kills);
-  list.innerHTML = sorted.map((p, i) => {
-    const rankClass = i < 3 ? `top-${i + 1}` : '';
-    return `<div class="lb-entry">
-      <span class="lb-rank ${rankClass}">${i + 1}</span>
-      <span class="lb-name" style="color:${p.color}">${p.name}</span>
-      <span class="lb-class">${p.className}</span>
-      <span class="lb-kills">${p.kills}杀</span>
-    </div>`;
+  // 按击杀数排序
+  const sortedPlayers = [...gameState.players].sort((a, b) => b.kills - a.kills);
+
+  list.innerHTML = sortedPlayers.map((player, index) => {
+    const rankClass = index < 3 ? `top-${index + 1}` : '';
+    
+    return `
+      <div class="lb-entry">
+        <span class="lb-rank ${rankClass}">${index + 1}</span>
+        <span class="lb-name" style="color:${player.color}">${player.name}</span>
+        <span class="lb-class">${player.className}</span>
+        <span class="lb-kills">${player.kills}杀</span>
+      </div>
+    `;
   }).join('');
 }
 
 // ============================================================
-// HUD 更新 HUD Update
+// HUD 更新 HUD Updates
 // ============================================================
+
+/**
+ * 设置技能图标
+ */
 function setupSkillIcons() {
-  const player = state.localPlayer;
-  if (!player || !state.classes) return;
+  const player = gameState.localPlayer;
+  if (!player || !gameState.classes) return;
 
-  const cls = state.classes[player.classId];
-  if (!cls) return;
+  const classData = gameState.classes[player.classId];
+  if (!classData) return;
 
-  const icons = {
-    warrior: ['⚔️', '🛡️', '📢'],
-    mage: ['🔮', '🧊', '⚡'],
-    archer: ['🏹', '🎯', '🪤'],
-    priest: ['✨', '✝️', '🛡️'],
-  };
-
-  const classIcons = icons[player.classId] || ['⚔️', '🔥', '❄️'];
-  for (let i = 0; i < 3; i++) {
-    const el = $('skill' + (i + 1));
-    if (el) el.querySelector('.skill-icon').textContent = classIcons[i];
+  // 更新技能栏图标
+  const skillIcons = classData.skills.map(s => s.icon);
+  for (let i = 0; i < skillIcons.length && i < 3; i++) {
+    const skillEl = $('skill' + (i + 1));
+    if (skillEl) {
+      skillEl.querySelector('.skill-icon').textContent = skillIcons[i];
+    }
   }
 
-  // 设置头像
-  const portraitIcons = { warrior: '⚔️', mage: '🔮', archer: '🏹', priest: '✨' };
-  $('playerPortrait').textContent = portraitIcons[player.classId] || '⚔️';
+  // 更新头像
+  $('playerPortrait').textContent = classData.icon;
 }
 
+/**
+ * 更新HUD显示
+ */
 function updateHUD() {
-  const player = state.localPlayer;
+  const player = gameState.localPlayer;
   if (!player) return;
 
   // 更新名字和等级
@@ -408,175 +761,314 @@ function updateHUD() {
   $('hudLevel').textContent = player.level;
 
   // 更新状态条
-  const hpPct = (player.hp / player.maxHp * 100).toFixed(1);
-  const mpPct = (player.mp / player.maxMp * 100).toFixed(1);
-  const xpPct = (player.xp / player.xpToNext * 100).toFixed(1);
+  updateBar('hpFill', 'hpText', player.hp, player.maxHp);
+  updateBar('mpFill', 'mpText', player.mp, player.maxMp);
+  updateBar('xpFill', 'xpText', player.xp, player.xpToNext, `EXP `);
 
-  $('hpFill').style.width = hpPct + '%';
-  $('mpFill').style.width = mpPct + '%';
-  $('xpFill').style.width = xpPct + '%';
-
-  $('hpText').textContent = `${Math.floor(player.hp)}/${player.maxHp}`;
-  $('mpText').textContent = `${Math.floor(player.mp)}/${player.maxMp}`;
-  $('xpText').textContent = `${player.xp}/${player.xpToNext}`;
-
-  // 金币
+  // 更新金币
   $('goldAmount').textContent = player.gold;
 
-  // 技能冷却
-  if (player.skills) {
-    for (let i = 0; i < player.skills.length && i < 4; i++) {
-      const skill = player.skills[i];
-      const cdEl = $('cd' + i);
-      if (cdEl) {
-        if (skill.currentCooldown > 0) {
-          cdEl.classList.add('active');
-          cdEl.textContent = skill.currentCooldown.toFixed(1);
-        } else {
-          cdEl.classList.remove('active');
-          cdEl.textContent = '';
-        }
+  // 更新技能冷却
+  updateSkillCooldowns(player.skills);
+
+  // 更新药水数量
+  updatePotionCount(player.inventory);
+
+  // 更新死亡界面
+  updateDeathOverlay(player);
+
+  // 更新相机位置
+  updateCamera(player);
+}
+
+/**
+ * 更新状态条
+ */
+function updateBar(fillId, textId, current, max, prefix = '') {
+  const fillEl = $(fillId);
+  const textEl = $(textId);
+  
+  if (fillEl) {
+    const percentage = (current / max * 100).toFixed(1);
+    fillEl.style.width = percentage + '%';
+  }
+  
+  if (textEl) {
+    textEl.textContent = `${prefix}${Math.floor(current)}/${max}`;
+  }
+}
+
+/**
+ * 更新技能冷却显示
+ */
+function updateSkillCooldowns(skills) {
+  if (!skills) return;
+
+  for (let i = 0; i < Math.min(skills.length, 4); i++) {
+    const skill = skills[i];
+    const cooldownEl = $('cd' + i);
+    
+    if (cooldownEl) {
+      if (skill.currentCooldown > 0) {
+        cooldownEl.classList.add('active');
+        cooldownEl.textContent = skill.currentCooldown.toFixed(1);
+      } else {
+        cooldownEl.classList.remove('active');
+        cooldownEl.textContent = '';
       }
     }
   }
+}
 
-  // 药水数量
-  const potion = player.inventory?.find(i => i.type === 'potion');
-  $('potionCount').textContent = potion ? potion.count : 0;
+/**
+ * 更新药水数量显示
+ */
+function updatePotionCount(inventory) {
+  const potion = inventory?.find(item => item.type === 'potion');
+  const countEl = $('potionCount');
+  
+  if (countEl) {
+    countEl.textContent = potion ? potion.count : 0;
+  }
+}
 
-  // 死亡覆盖
+/**
+ * 更新死亡界面
+ */
+function updateDeathOverlay(player) {
   const deathOverlay = $('deathOverlay');
+  if (!deathOverlay) return;
+
   if (!player.alive) {
     deathOverlay.classList.add('active');
     $('respawnTimer').textContent = Math.ceil(player.respawnTimer);
   } else {
     deathOverlay.classList.remove('active');
   }
+}
 
-  // 相机跟随
-  state.camera.x = player.x - canvas.width / 2;
-  state.camera.y = player.y - canvas.height / 2;
+/**
+ * 更新相机位置
+ */
+function updateCamera(player) {
+  gameState.camera.x = player.x - canvas.width / 2;
+  gameState.camera.y = player.y - canvas.height / 2;
 }
 
 // ============================================================
 // 游戏渲染 Game Rendering
 // ============================================================
-function render() {
-  if (!state.dungeon || !state.localPlayer) {
-    requestAnimationFrame(render);
-    return;
+
+/**
+ * 主渲染循环
+ */
+function renderLoop() {
+  // 更新FPS
+  updateFPS();
+  
+  // 渲染游戏
+  render();
+  
+  // 继续下一帧
+  requestAnimationFrame(renderLoop);
+}
+
+/**
+ * 更新FPS计数
+ */
+function updateFPS() {
+  gameState.frameCount++;
+  const now = Date.now();
+  
+  if (now - gameState.lastFpsUpdate >= 1000) {
+    gameState.fps = gameState.frameCount;
+    gameState.frameCount = 0;
+    gameState.lastFpsUpdate = now;
   }
+}
+
+/**
+ * 渲染游戏画面
+ */
+function render() {
+  if (!gameState.dungeon || !gameState.localPlayer) return;
 
   const { width, height } = canvas;
-  const ts = state.tileSize;
-  const cam = state.camera;
+  const { camera } = gameState;
+  const tileSize = CLIENT_CONFIG.GAME.TILE_SIZE;
 
   // 清屏
-  ctx.fillStyle = '#0a0a0f';
+  ctx.fillStyle = CLIENT_CONFIG.CANVAS.BG_COLOR;
   ctx.fillRect(0, 0, width, height);
 
   // 计算可见范围
-  const startCol = Math.max(0, Math.floor(cam.x / ts));
-  const endCol = Math.min(state.dungeon.width, Math.ceil((cam.x + width) / ts) + 1);
-  const startRow = Math.max(0, Math.floor(cam.y / ts));
-  const endRow = Math.min(state.dungeon.height, Math.ceil((cam.y + height) / ts) + 1);
+  const startCol = Math.max(0, Math.floor(camera.x / tileSize));
+  const endCol = Math.min(gameState.dungeon.width, Math.ceil((camera.x + width) / tileSize) + 1);
+  const startRow = Math.max(0, Math.floor(camera.y / tileSize));
+  const endRow = Math.min(gameState.dungeon.height, Math.ceil((camera.y + height) / tileSize) + 1);
 
-  // 绘制地牢 Draw dungeon
+  // 绘制地牢
+  renderDungeon(startCol, endCol, startRow, endRow, camera, tileSize);
+
+  // 绘制掉落物
+  renderLootDrops(camera);
+
+  // 绘制陷阱
+  renderTraps(camera);
+
+  // 绘制投射物
+  renderProjectiles(camera);
+
+  // 绘制怪物
+  renderMonsters(camera);
+
+  // 绘制玩家
+  renderPlayers(camera);
+
+  // 绘制迷雾
+  renderFogOfWar(width, height);
+
+  // 绘制小地图
+  renderMinimap();
+}
+
+/**
+ * 渲染地牢
+ */
+function renderDungeon(startCol, endCol, startRow, endRow, camera, tileSize) {
   for (let row = startRow; row < endRow; row++) {
     for (let col = startCol; col < endCol; col++) {
-      const tile = state.dungeon.tiles[row]?.[col];
-      const x = col * ts - cam.x;
-      const y = row * ts - cam.y;
+      const tile = gameState.dungeon.tiles[row]?.[col];
+      const x = col * tileSize - camera.x;
+      const y = row * tileSize - camera.y;
 
       if (tile === 1) {
         // 地板
         ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(x, y, ts, ts);
+        ctx.fillRect(x, y, tileSize, tileSize);
+        
         // 地板纹理
-        ctx.fillStyle = '#16162a';
-        if ((row + col) % 2 === 0) ctx.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+        if ((row + col) % 2 === 0) {
+          ctx.fillStyle = '#16162a';
+          ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+        }
+        
         // 地板边线
         ctx.strokeStyle = '#121224';
         ctx.lineWidth = 0.5;
-        ctx.strokeRect(x, y, ts, ts);
+        ctx.strokeRect(x, y, tileSize, tileSize);
       } else {
         // 墙壁
         ctx.fillStyle = '#2a2520';
-        ctx.fillRect(x, y, ts, ts);
+        ctx.fillRect(x, y, tileSize, tileSize);
+        
         // 墙壁纹理
         ctx.fillStyle = '#231f1a';
-        ctx.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+        ctx.fillRect(x + 1, y + 1, tileSize - 2, tileSize - 2);
+        
         // 墙壁高光
         ctx.fillStyle = '#332e28';
-        ctx.fillRect(x, y, ts, 2);
-        ctx.fillRect(x, y, 2, ts);
+        ctx.fillRect(x, y, tileSize, 2);
+        ctx.fillRect(x, y, 2, tileSize);
       }
     }
   }
+}
 
-  // 绘制掉落物 Draw loot
-  for (const loot of state.lootDrops) {
-    const x = loot.x - cam.x;
-    const y = loot.y - cam.y;
-    const icons = { weapon: '⚔️', armor: '🛡️', potion: '🧪', accessory: '💎', gold: '💰' };
+/**
+ * 渲染掉落物
+ */
+function renderLootDrops(camera) {
+  const icons = {
+    weapon: '⚔️',
+    armor: '🛡️',
+    potion: '🧪',
+    accessory: '💎',
+    gold: '💰',
+  };
 
-    // 发光效果
+  for (const loot of gameState.lootDrops) {
+    const x = loot.x - camera.x;
+    const y = loot.y - camera.y;
+    const icon = icons[loot.type] || '📦';
+
     ctx.save();
     ctx.shadowColor = loot.rarityColor || '#d4a843';
     ctx.shadowBlur = 8;
     ctx.font = '16px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(icons[loot.type] || '📦', x, y + Math.sin(Date.now() / 500) * 3);
+    
+    // 浮动动画
+    const floatY = Math.sin(Date.now() / 500) * 3;
+    ctx.fillText(icon, x, y + floatY);
+    
     ctx.restore();
   }
+}
 
-  // 绘制陷阱 Draw traps
-  for (const proj of state.projectiles) {
-    if (proj.isTrap) {
-      const x = proj.x - cam.x;
-      const y = proj.y - cam.y;
-      ctx.save();
-      ctx.fillStyle = 'rgba(46, 204, 113, 0.3)';
-      ctx.beginPath();
-      ctx.arc(x, y, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#2ecc71';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.restore();
-    }
+/**
+ * 渲染陷阱
+ */
+function renderTraps(camera) {
+  for (const proj of gameState.projectiles) {
+    if (!proj.isTrap) continue;
+    
+    const x = proj.x - camera.x;
+    const y = proj.y - camera.y;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(46, 204, 113, 0.3)';
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
   }
+}
 
-  // 绘制投射物 Draw projectiles
-  for (const proj of state.projectiles) {
+/**
+ * 渲染投射物
+ */
+function renderProjectiles(camera) {
+  for (const proj of gameState.projectiles) {
     if (proj.isTrap) continue;
-    const x = proj.x - cam.x;
-    const y = proj.y - cam.y;
+    
+    const x = proj.x - camera.x;
+    const y = proj.y - camera.y;
 
     ctx.save();
     ctx.fillStyle = proj.color || '#f0c75e';
     ctx.shadowColor = proj.color || '#f0c75e';
     ctx.shadowBlur = 6;
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.arc(x, y, CLIENT_CONFIG.GAME.PROJECTILE_HITBOX, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
+}
 
-  // 绘制怪物 Draw monsters
-  for (const monster of state.monsters) {
-    const x = monster.x - cam.x;
-    const y = monster.y - cam.y;
+/**
+ * 渲染怪物
+ */
+function renderMonsters(camera) {
+  for (const monster of gameState.monsters) {
+    const x = monster.x - camera.x;
+    const y = monster.y - camera.y;
 
     ctx.save();
 
-    // 怪物本体
-    ctx.fillStyle = monster.color;
+    // Boss光环
     if (monster.isBoss) {
       ctx.shadowColor = '#e67e22';
       ctx.shadowBlur = 15;
     }
+
+    // 怪物身体
+    ctx.fillStyle = monster.color;
     ctx.beginPath();
     ctx.arc(x, y, monster.size, 0, Math.PI * 2);
     ctx.fill();
@@ -597,18 +1089,15 @@ function render() {
 
     // 血条
     if (monster.hp < monster.maxHp) {
-      const barW = monster.size * 2;
-      const barH = 4;
-      const barX = x - barW / 2;
-      const barY = y - monster.size - 8;
-
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = monster.isBoss ? '#e67e22' : '#c0392b';
-      ctx.fillRect(barX, barY, barW * (monster.hp / monster.maxHp), barH);
-      ctx.strokeStyle = '#2a2520';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(barX, barY, barW, barH);
+      renderHealthBar(
+        x,
+        y - monster.size - 8,
+        monster.size * 2,
+        4,
+        monster.hp,
+        monster.maxHp,
+        monster.isBoss ? '#e67e22' : '#c0392b'
+      );
     }
 
     // 怪物名字
@@ -619,17 +1108,23 @@ function render() {
 
     ctx.restore();
   }
+}
 
-  // 绘制玩家 Draw players
-  for (const player of state.players) {
+/**
+ * 渲染玩家
+ */
+function renderPlayers(camera) {
+  for (const player of gameState.players) {
     if (!player.alive) continue;
-    const x = player.x - cam.x;
-    const y = player.y - cam.y;
+    
+    const x = player.x - camera.x;
+    const y = player.y - camera.y;
+    const isLocalPlayer = player.id === gameState.playerId;
 
     ctx.save();
 
-    // 玩家光环（本地玩家）
-    if (player.id === state.playerId) {
+    // 本地玩家光环
+    if (isLocalPlayer) {
       ctx.strokeStyle = player.color;
       ctx.lineWidth = 2;
       ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 800) * 0.1;
@@ -662,12 +1157,12 @@ function render() {
     // 玩家身体
     ctx.fillStyle = player.color;
     ctx.shadowColor = player.color;
-    ctx.shadowBlur = player.id === state.playerId ? 8 : 4;
+    ctx.shadowBlur = isLocalPlayer ? 8 : 4;
     ctx.beginPath();
     ctx.arc(x, y, 14, 0, Math.PI * 2);
     ctx.fill();
 
-    // 玩家方向指示器
+    // 方向指示器
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     const dirX = x + (player.direction?.x || 0) * 18;
@@ -679,7 +1174,7 @@ function render() {
     // 玩家名字
     ctx.font = '11px "Noto Sans SC", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = player.id === state.playerId ? '#f5e6c8' : '#a09880';
+    ctx.fillStyle = isLocalPlayer ? '#f5e6c8' : '#a09880';
     ctx.fillText(player.name, x, y - 22);
 
     // 玩家等级
@@ -687,34 +1182,41 @@ function render() {
     ctx.fillStyle = '#d4a843';
     ctx.fillText(`Lv.${player.level}`, x, y + 24);
 
-    // 血条（其他玩家）
-    if (player.id !== state.playerId) {
-      const barW = 28;
-      const barH = 3;
-      const barX = x - barW / 2;
-      const barY = y - 18;
-
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = '#c0392b';
-      ctx.fillRect(barX, barY, barW * (player.hp / player.maxHp), barH);
+    // 其他玩家血条
+    if (!isLocalPlayer) {
+      renderHealthBar(x, y - 18, 28, 3, player.hp, player.maxHp, '#c0392b');
     }
 
     ctx.restore();
   }
-
-  // 绘制迷雾边缘 Draw fog edges
-  drawFogOfWar(cam, width, height);
-
-  // 绘制小地图
-  drawMinimap();
-
-  requestAnimationFrame(render);
 }
 
-function drawFogOfWar(cam, width, height) {
-  // 在可见区域边缘添加渐变雾气
-  const fogSize = 60;
+/**
+ * 渲染血条
+ */
+function renderHealthBar(x, y, width, height, current, max, color) {
+  const barX = x - width / 2;
+  const percentage = current / max;
+
+  // 背景
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(barX, y, width, height);
+
+  // 血量
+  ctx.fillStyle = color;
+  ctx.fillRect(barX, y, width * percentage, height);
+
+  // 边框
+  ctx.strokeStyle = '#2a2520';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(barX, y, width, height);
+}
+
+/**
+ * 渲染迷雾效果
+ */
+function renderFogOfWar(width, height) {
+  const fogSize = CLIENT_CONFIG.CANVAS.FOG_SIZE;
 
   // 上方
   let gradient = ctx.createLinearGradient(0, 0, 0, fogSize);
@@ -748,87 +1250,131 @@ function drawFogOfWar(cam, width, height) {
 // ============================================================
 // 小地图 Minimap
 // ============================================================
-function drawMinimap() {
-  if (!state.dungeon) return;
+
+/**
+ * 渲染小地图
+ */
+function renderMinimap() {
+  if (!gameState.dungeon) return;
 
   const mw = minimapCanvas.width;
   const mh = minimapCanvas.height;
-  const dw = state.dungeon.width;
-  const dh = state.dungeon.height;
-  const sx = mw / dw;
-  const sy = mh / dh;
+  const dw = gameState.dungeon.width;
+  const dh = gameState.dungeon.height;
+  const scaleX = mw / dw;
+  const scaleY = mh / dh;
 
+  // 清空小地图
   minimapCtx.fillStyle = '#0a0a0f';
   minimapCtx.fillRect(0, 0, mw, mh);
 
   // 绘制地牢布局
+  renderMinimapDungeon(dw, dh, scaleX, scaleY);
+
+  // 绘制怪物
+  renderMinimapMonsters(scaleX, scaleY);
+
+  // 绘制玩家
+  renderMinimapPlayers(scaleX, scaleY);
+
+  // 绘制掉落物
+  renderMinimapLoot(scaleX, scaleY);
+
+  // 绘制相机视野
+  renderMinimapViewPort(scaleX, scaleY);
+}
+
+/**
+ * 渲染小地图地牢
+ */
+function renderMinimapDungeon(dw, dh, scaleX, scaleY) {
   for (let row = 0; row < dh; row++) {
     for (let col = 0; col < dw; col++) {
-      if (state.dungeon.tiles[row]?.[col] === 1) {
+      if (gameState.dungeon.tiles[row]?.[col] === 1) {
         minimapCtx.fillStyle = '#1a1a2e';
-        minimapCtx.fillRect(col * sx, row * sy, sx + 0.5, sy + 0.5);
+        minimapCtx.fillRect(
+          col * scaleX,
+          row * scaleY,
+          scaleX + 0.5,
+          scaleY + 0.5
+        );
       }
     }
   }
+}
 
-  // 绘制怪物（红点）
-  for (const monster of state.monsters) {
+/**
+ * 渲染小地图怪物
+ */
+function renderMinimapMonsters(scaleX, scaleY) {
+  for (const monster of gameState.monsters) {
     minimapCtx.fillStyle = monster.isBoss ? '#e67e22' : '#c0392b';
     const size = monster.isBoss ? 3 : 1.5;
+    
     minimapCtx.fillRect(
-      (monster.x / state.tileSize) * sx - size / 2,
-      (monster.y / state.tileSize) * sy - size / 2,
-      size, size
+      (monster.x / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleX - size / 2,
+      (monster.y / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleY - size / 2,
+      size,
+      size
     );
   }
+}
 
-  // 绘制玩家
-  for (const player of state.players) {
+/**
+ * 渲染小地图玩家
+ */
+function renderMinimapPlayers(scaleX, scaleY) {
+  for (const player of gameState.players) {
     if (!player.alive) continue;
-    minimapCtx.fillStyle = player.id === state.playerId ? '#f0c75e' : player.color;
-    const size = player.id === state.playerId ? 4 : 2;
+    
+    const isLocalPlayer = player.id === gameState.playerId;
+    minimapCtx.fillStyle = isLocalPlayer ? '#f0c75e' : player.color;
+    const size = isLocalPlayer ? 4 : 2;
+    
     minimapCtx.fillRect(
-      (player.x / state.tileSize) * sx - size / 2,
-      (player.y / state.tileSize) * sy - size / 2,
-      size, size
+      (player.x / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleX - size / 2,
+      (player.y / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleY - size / 2,
+      size,
+      size
     );
   }
+}
 
-  // 绘制掉落物
-  for (const loot of state.lootDrops) {
+/**
+ * 渲染小地图掉落物
+ */
+function renderMinimapLoot(scaleX, scaleY) {
+  for (const loot of gameState.lootDrops) {
     minimapCtx.fillStyle = loot.rarityColor || '#d4a843';
+    
     minimapCtx.fillRect(
-      (loot.x / state.tileSize) * sx - 1,
-      (loot.y / state.tileSize) * sy - 1,
-      2, 2
+      (loot.x / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleX - 1,
+      (loot.y / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleY - 1,
+      2,
+      2
     );
   }
+}
 
-  // 绘制相机视野范围
+/**
+ * 渲染小地图视野范围
+ */
+function renderMinimapViewPort(scaleX, scaleY) {
   minimapCtx.strokeStyle = 'rgba(212, 168, 67, 0.3)';
   minimapCtx.lineWidth = 1;
+  
   minimapCtx.strokeRect(
-    (state.camera.x / state.tileSize) * sx,
-    (state.camera.y / state.tileSize) * sy,
-    (canvas.width / state.tileSize) * sx,
-    (canvas.height / state.tileSize) * sy
+    (gameState.camera.x / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleX,
+    (gameState.camera.y / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleY,
+    (canvas.width / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleX,
+    (canvas.height / CLIENT_CONFIG.GAME.TILE_SIZE) * scaleY
   );
 }
 
 // ============================================================
-// 游戏循环 Game Loop
+// 初始化 Initialization
 // ============================================================
-function gameLoop() {
-  // 定期发送输入
-  sendInput();
-  requestAnimationFrame(gameLoop);
-}
 
-// ============================================================
-// 启动 Init
-// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-  initLogin();
-  render();
-  gameLoop();
+  initLoginScreen();
 });
