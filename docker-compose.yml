@@ -1,0 +1,28 @@
+# 深渊地牢 - Docker Compose配置
+# Abyss Dungeon - Docker Compose Configuration
+
+version: '3.8'
+
+services:
+  game-server:
+    build: .
+    container_name: abyss-dungeon
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - MAX_PLAYERS=50
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
