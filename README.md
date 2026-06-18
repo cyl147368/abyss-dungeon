@@ -6,7 +6,10 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-16+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![WebSocket](https://img.shields.io/badge/WebSocket-8.x-010101?style=flat-square)](https://github.com/websockets/ws)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](Dockerfile)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+
+**[在线演示](http://121.4.97.25:3000)** | **[部署指南](DEPLOYMENT.md)**
 
 [中文](#中文) | [English](#english) | [日本語](#日本語)
 
@@ -21,39 +24,84 @@
 
 **深渊地牢** 是一款基于 WebSocket 的多人合作地牢探险网页游戏。玩家可以选择不同职业，与好友组队探索随机生成的地牢，击败怪物获取装备，挑战强大的Boss。
 
-### ✨ 游戏特色
+### ✨ 核心特色
 
-| 特色 | 描述 |
-|------|------|
-| 🎭 **四大职业** | 战士、法师、弓箭手、牧师，各有独特技能 |
-| 🗺️ **随机地牢** | 程序化生成的地牢地图，每次探险都不同 |
-| ⚔️ **实时战斗** | 基于服务器权威架构的实时战斗系统 |
-| 🎒 **装备系统** | 武器、护甲、饰品，多品质掉落 |
-| 👹 **Boss战** | 每个地牢都有强大的Boss等待挑战 |
-| 📊 **排行榜** | 实时击杀排行榜 |
-| 💬 **聊天系统** | 游戏内实时聊天 |
-| 🗺️ **小地图** | 实时显示玩家、怪物、掉落物位置 |
+<table>
+<tr>
+<td width="50%">
+
+#### 🎭 四大职业系统
+- ⚔️ **战士** - 近战坦克，攻守兼备
+- 🔮 **法师** - 远程输出，元素之力
+- 🏹 **弓箭手** - 灵活机动，百步穿杨
+- ✨ **牧师** - 治疗辅助，守护同伴
+
+</td>
+<td width="50%">
+
+#### 🗺️ 随机地牢生成
+- 程序化房间生成算法
+- 每次探险地图都不同
+- 多房间走廊连接
+- 出生点安全区域
+
+</td>
+</tr>
+<tr>
+<td>
+
+#### ⚔️ 实时战斗系统
+- 服务器权威架构
+- 技能冷却机制
+- 范围伤害(AOE)
+- 护盾与Buff系统
+
+</td>
+<td>
+
+#### 🎒 装备掉落系统
+- 5种稀有度品质
+- 武器/护甲/饰品
+- 药水恢复物品
+- 金币货币系统
+
+</td>
+</tr>
+</table>
 
 ### 🎮 操作说明
 
-| 按键 | 功能 |
-|------|------|
-| `WASD` / 方向键 | 移动角色 |
-| 鼠标左键 | 普通攻击 |
-| `Q` | 技能1 |
-| `E` | 技能2 |
-| `R` | 使用药水 |
-| `I` | 打开/关闭背包 |
-| `Tab` | 显示/隐藏排行榜 |
-| `Enter` | 打开聊天 |
+| 按键 | 功能 | 按键 | 功能 |
+|------|------|------|------|
+| `WASD` / 方向键 | 移动角色 | `I` | 打开/关闭背包 |
+| 鼠标左键 | 普通攻击 | `Tab` | 显示/隐藏排行榜 |
+| `Q` | 技能1 | `Enter` | 打开聊天 |
+| `E` | 技能2 | `R` | 使用药水 |
 
-### 🛠️ 技术栈
+### 🛠️ 技术架构
 
 ```
-前端: HTML5 Canvas + 原生JavaScript
-后端: Node.js + WebSocket (ws库)
-架构: 服务器权威架构 (Server-Authoritative)
-同步: 快照插值 (Snapshot Interpolation)
+┌─────────────────────────────────────────────────────────────┐
+│                        客户端 (Browser)                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │ Canvas渲染   │  │  输入处理    │  │  UI管理     │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+│         └────────────────┼────────────────┘                 │
+│                          │                                  │
+│                    WebSocket Client                         │
+└──────────────────────────┼──────────────────────────────────┘
+                           │
+                     WebSocket (ws)
+                           │
+┌──────────────────────────┼──────────────────────────────────┐
+│                    游戏服务器 (Node.js)                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │ 游戏逻辑    │  │  物理引擎    │  │  网络同步   │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+│         └────────────────┼────────────────┘                 │
+│                          │                                  │
+│              Server-Authoritative Architecture              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### 📁 项目结构
@@ -61,20 +109,29 @@
 ```
 abyss-dungeon/
 ├── server/
-│   └── index.js          # 游戏服务器 (WebSocket + HTTP)
+│   └── index.js              # 游戏服务器 (WebSocket + HTTP)
 ├── client/
-│   ├── index.html         # 游戏主页面
+│   ├── index.html            # 游戏主页面
 │   ├── css/
-│   │   └── styles.css     # 游戏样式 (暗黑哥特风格)
+│   │   └── styles.css        # 游戏样式 (暗黑哥特风格)
 │   └── js/
-│       └── main.js        # 游戏客户端逻辑
-├── package.json           # 项目配置
-└── README.md              # 项目说明
+│       └── main.js           # 游戏客户端逻辑
+├── Dockerfile                # Docker镜像配置
+├── docker-compose.yml        # Docker Compose配置
+├── ecosystem.config.js       # PM2进程管理配置
+├── deploy.sh                 # 部署脚本
+├── DEPLOYMENT.md             # 详细部署指南
+├── package.json              # 项目配置
+├── .env.example              # 环境变量示例
+├── .gitignore                # Git忽略文件
+├── LICENSE                   # MIT开源协议
+└── README.md                 # 项目说明
 ```
 
 ### 🚀 快速开始
 
 #### 环境要求
+
 - Node.js >= 16.0.0
 - npm >= 7.0.0
 
@@ -82,7 +139,7 @@ abyss-dungeon/
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourusername/abyss-dungeon.git
+git clone https://github.com/cyl147368/abyss-dungeon.git
 cd abyss-dungeon
 
 # 安装依赖
@@ -94,16 +151,33 @@ npm start
 
 访问 `http://localhost:3000` 即可开始游戏。
 
-#### 环境变量
+#### Docker部署（推荐）
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `PORT` | 3000 | 服务器端口 |
-| `HOST` | 0.0.0.0 | 监听地址 |
+```bash
+# 使用Docker Compose一键启动
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+```
+
+#### PM2部署（生产环境）
+
+```bash
+# 安装PM2
+npm install -g pm2
+
+# 启动应用
+pm2 start ecosystem.config.js --env production
+
+# 保存并设置开机自启
+pm2 save
+pm2 startup
+```
 
 ### 🎯 游戏系统详解
 
-#### 职业系统
+#### 职业属性对比
 
 | 职业 | 生命 | 魔法 | 攻击 | 防御 | 速度 | 定位 |
 |------|------|------|------|------|------|------|
@@ -112,15 +186,37 @@ npm start
 | 🏹 弓箭手 | 120 | 80 | 30 | 10 | 180 | 远程灵活 |
 | ✨ 牧师 | 130 | 180 | 15 | 12 | 140 | 治疗辅助 |
 
-#### 怪物系统
+#### 技能系统
+
+**战士技能：**
+- ⚔️ 横扫斩 - 范围伤害
+- 🛡️ 盾击 - 眩晕敌人
+- 📢 战吼 - 增加攻击力
+
+**法师技能：**
+- 🔥 火球术 - 高伤投射物
+- 🧊 冰墙 - 减速敌人
+- ⚡ 闪电链 - 连锁攻击
+
+**弓箭手技能：**
+- 🎯 蓄力射击 - 远程高伤
+- 🏹 多重射击 - 扇形箭雨
+- 🪤 陷阱 - 减速区域
+
+**牧师技能：**
+- 💚 治愈术 - 恢复生命
+- ✝️ 圣光 - 远程攻击
+- 🛡️ 护盾 - 伤害吸收
+
+#### 怪物图鉴
 
 | 怪物 | 生命 | 攻击 | 经验 | 特点 |
 |------|------|------|------|------|
-| 史莱姆 | 40 | 8 | 15 | 基础小怪 |
-| 骷髅战士 | 80 | 15 | 30 | 中等难度 |
-| 哥布林 | 60 | 12 | 25 | 速度较快 |
-| 恶魔 | 150 | 25 | 60 | 精英怪 |
-| 巨龙 | 500 | 40 | 200 | Boss |
+| 🟢 史莱姆 | 40 | 8 | 15 | 基础小怪 |
+| ⚪ 骷髅战士 | 80 | 15 | 30 | 中等难度 |
+| 🟣 哥布林 | 60 | 12 | 25 | 速度较快 |
+| 🔴 恶魔 | 150 | 25 | 60 | 精英怪 |
+| 🟠 巨龙 | 500 | 40 | 200 | Boss |
 
 #### 掉落品质
 
@@ -132,9 +228,49 @@ npm start
 | 史诗 | 紫色 | 8% |
 | 传说 | 橙色 | 2% |
 
+### 📊 API端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/` | GET | 游戏页面 |
+| `/health` | GET | 健康检查 |
+| `/stats` | GET | 服务器统计 |
+
+#### 健康检查响应示例
+
+```json
+{
+  "uptime": 3600,
+  "players": 15,
+  "monsters": 43,
+  "loot": 8,
+  "projectiles": 12,
+  "tick": 72000
+}
+```
+
+### 🔧 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `NODE_ENV` | development | 运行环境 |
+| `PORT` | 3000 | 服务器端口 |
+| `HOST` | 0.0.0.0 | 监听地址 |
+| `MAX_PLAYERS` | 50 | 最大玩家数 |
+
 ### 📄 开源协议
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
+
+### 🤝 贡献指南
+
+欢迎提交Issue和Pull Request！
+
+1. Fork本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建Pull Request
 
 ---
 
@@ -145,7 +281,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 **Abyss Dungeon** is a multiplayer co-op dungeon crawler web game built with WebSocket. Players can choose from different classes, team up with friends to explore procedurally generated dungeons, defeat monsters for loot, and challenge powerful bosses.
 
-### ✨ Features
+### ✨ Key Features
 
 - **4 Character Classes**: Warrior, Mage, Archer, Priest - each with unique skills
 - **Procedural Dungeons**: Randomly generated maps for endless replayability
@@ -158,16 +294,12 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ### 🎮 Controls
 
-| Key | Action |
-|-----|--------|
-| `WASD` / Arrow Keys | Move |
-| Left Click | Attack |
-| `Q` | Skill 1 |
-| `E` | Skill 2 |
-| `R` | Use Potion |
-| `I` | Toggle Inventory |
-| `Tab` | Toggle Leaderboard |
-| `Enter` | Open Chat |
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `WASD` / Arrow Keys | Move | `I` | Toggle Inventory |
+| Left Click | Attack | `Tab` | Toggle Leaderboard |
+| `Q` | Skill 1 | `Enter` | Open Chat |
+| `E` | Skill 2 | `R` | Use Potion |
 
 ### 🛠️ Tech Stack
 
@@ -175,14 +307,14 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 Frontend: HTML5 Canvas + Vanilla JavaScript
 Backend: Node.js + WebSocket (ws)
 Architecture: Server-Authoritative
-Sync: Snapshot Interpolation
+Deployment: Docker / PM2
 ```
 
 ### 🚀 Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/abyss-dungeon.git
+git clone https://github.com/cyl147368/abyss-dungeon.git
 cd abyss-dungeon
 
 # Install dependencies
@@ -193,6 +325,21 @@ npm start
 ```
 
 Visit `http://localhost:3000` to start playing.
+
+#### Docker Deployment (Recommended)
+
+```bash
+docker-compose up -d
+```
+
+#### PM2 Deployment (Production)
+
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.js --env production
+pm2 save
+pm2 startup
+```
 
 ### 🎯 Game Systems
 
@@ -209,11 +356,11 @@ Visit `http://localhost:3000` to start playing.
 
 | Monster | HP | ATK | XP | Notes |
 |---------|----|----|-----|-------|
-| Slime | 40 | 8 | 15 | Basic mob |
-| Skeleton | 80 | 15 | 30 | Medium difficulty |
-| Goblin | 60 | 12 | 25 | Fast |
-| Demon | 150 | 25 | 60 | Elite |
-| Dragon | 500 | 40 | 200 | Boss |
+| 🟢 Slime | 40 | 8 | 15 | Basic mob |
+| ⚪ Skeleton | 80 | 15 | 30 | Medium difficulty |
+| 🟣 Goblin | 60 | 12 | 25 | Fast |
+| 🔴 Demon | 150 | 25 | 60 | Elite |
+| 🟠 Dragon | 500 | 40 | 200 | Boss |
 
 #### Loot Rarity
 
@@ -251,22 +398,18 @@ MIT License - see [LICENSE](LICENSE) for details
 
 ### 🎮 操作方法
 
-| キー | 機能 |
-|------|------|
-| `WASD` / 矢印キー | 移動 |
-| 左クリック | 攻撃 |
-| `Q` | スキル1 |
-| `E` | スキル2 |
-| `R` | ポーション使用 |
-| `I` | インベントリ切替 |
-| `Tab` | リーダーボード切替 |
-| `Enter` | チャット |
+| キー | 機能 | キー | 機能 |
+|------|------|------|------|
+| `WASD` / 矢印キー | 移動 | `I` | インベントリ切替 |
+| 左クリック | 攻撃 | `Tab` | リーダーボード切替 |
+| `Q` | スキル1 | `Enter` | チャット |
+| `E` | スキル2 | `R` | ポーション使用 |
 
 ### 🚀 クイックスタート
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/yourusername/abyss-dungeon.git
+git clone https://github.com/cyl147368/abyss-dungeon.git
 cd abyss-dungeon
 
 # 依存関係をインストール
@@ -284,8 +427,17 @@ MIT License - 詳細は [LICENSE](LICENSE) をご覧ください
 
 ---
 
+## 📞 連絡先
+
+- GitHub: [@cyl147368](https://github.com/cyl147368)
+- Issues: [GitHub Issues](https://github.com/cyl147368/abyss-dungeon/issues)
+
+---
+
 <div align="center">
 
 **Made with ❤️ by Abyss Dungeon Team**
+
+[⬆ 返回顶部](#深渊地牢--abyss-dungeon)
 
 </div>
