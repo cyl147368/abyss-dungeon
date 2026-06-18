@@ -1378,3 +1378,172 @@ function renderMinimapViewPort(scaleX, scaleY) {
 document.addEventListener('DOMContentLoaded', () => {
   initLoginScreen();
 });
+
+
+// ============================================================
+// 移动端触摸控制 Mobile Touch Controls
+// ============================================================
+
+/**
+ * 初始化触摸控制
+ */
+function initTouchControls() {
+  // 检测是否为移动设备
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
+  if (!isMobile) return;
+
+  console.log('检测到移动设备，启用触摸控制');
+
+  // 创建虚拟摇杆
+  createVirtualJoystick();
+  
+  // 创建虚拟按钮
+  createVirtualButtons();
+}
+
+/**
+ * 创建虚拟摇杆
+ */
+function createVirtualJoystick() {
+  const joystickContainer = document.createElement('div');
+  joystickContainer.id = 'virtualJoystick';
+  joystickContainer.style.cssText = `
+    position: fixed;
+    bottom: 120px;
+    left: 40px;
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    z-index: 1000;
+    touch-action: none;
+  `;
+
+  const joystickKnob = document.createElement('div');
+  joystickKnob.id = 'joystickKnob';
+  joystickKnob.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    pointer-events: none;
+  `;
+
+  joystickContainer.appendChild(joystickKnob);
+  document.body.appendChild(joystickContainer);
+
+  let isDragging = false;
+  let startX, startY;
+
+  joystickContainer.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    e.preventDefault();
+  });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const maxDistance = 50;
+
+    const normalizedX = deltaX / Math.max(distance, maxDistance);
+    const normalizedY = deltaY / Math.max(distance, maxDistance);
+
+    const knobX = normalizedX * maxDistance;
+    const knobY = normalizedY * maxDistance;
+
+    joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+
+    // 更新输入状态
+    gameState.input.left = normalizedX < -0.3;
+    gameState.input.right = normalizedX > 0.3;
+    gameState.input.up = normalizedY < -0.3;
+    gameState.input.down = normalizedY > 0.3;
+  });
+
+  document.addEventListener('touchend', () => {
+    isDragging = false;
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+    gameState.input.left = false;
+    gameState.input.right = false;
+    gameState.input.up = false;
+    gameState.input.down = false;
+  });
+}
+
+/**
+ * 创建虚拟按钮
+ */
+function createVirtualButtons() {
+  const buttonContainer = document.createElement('div');
+  buttonContainer.id = 'virtualButtons';
+  buttonContainer.style.cssText = `
+    position: fixed;
+    bottom: 120px;
+    right: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, 60px);
+    gap: 10px;
+    z-index: 1000;
+  `;
+
+  const buttons = [
+    { id: 'attackBtn', label: '⚔️', action: () => gameState.input.attack = true },
+    { id: 'skill1Btn', label: 'Q', action: () => gameState.input.skill = 0 },
+    { id: 'skill2Btn', label: 'E', action: () => gameState.input.skill = 1 },
+    { id: 'potionBtn', label: '🧪', action: usePotion },
+  ];
+
+  buttons.forEach(btn => {
+    const button = document.createElement('button');
+    button.textContent = btn.label;
+    button.style.cssText = `
+      width: 60px;
+      height: 60px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      color: white;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    `;
+
+    button.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      btn.action();
+    });
+
+    button.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (btn.id === 'attackBtn') {
+        gameState.input.attack = false;
+      }
+    });
+
+    buttonContainer.appendChild(button);
+  });
+
+  document.body.appendChild(buttonContainer);
+}
+
+// 在DOMContentLoaded时初始化触摸控制
+document.addEventListener('DOMContentLoaded', () => {
+  initTouchControls();
+});
