@@ -441,3 +441,52 @@ MIT License - 詳細は [LICENSE](LICENSE) をご覧ください
 [⬆ 返回顶部](#深渊地牢--abyss-dungeon)
 
 </div>
+
+---
+
+## 🔄 CI/CD 自动部署
+
+本项目支持GitHub Actions自动部署到服务器。
+
+### 配置步骤
+
+1. **生成SSH密钥对**
+```bash
+ssh-keygen -t ed25519 -f deploy_key -N ""
+```
+
+2. **将公钥添加到服务器**
+```bash
+cat deploy_key.pub >> ~/.ssh/authorized_keys
+```
+
+3. **在GitHub仓库中添加Secrets**
+   - 进入仓库 Settings > Secrets and variables > Actions
+   - 添加以下secrets:
+     - `DEPLOY_HOST`: 服务器地址 (121.4.97.25)
+     - `DEPLOY_USER`: 用户名 (ubuntu)
+     - `DEPLOY_KEY`: 私钥内容 (cat deploy_key)
+
+4. **触发部署**
+   - 推送代码到master分支会自动触发部署
+   - 也可以在Actions页面手动触发
+
+### 部署流程
+
+1. 检出代码
+2. 安装依赖
+3. 运行测试
+4. 部署到服务器
+5. 验证部署状态
+
+---
+
+## 📊 质量标准
+
+本项目遵循以下质量标准:
+
+- **ISO/IEC 25010**: 软件产品质量模型
+- **CMMI**: 能力成熟度模型集成
+- **代码规范**: JSDoc文档、错误处理、日志记录
+- **测试覆盖**: 自动化测试脚本
+- **部署自动化**: GitHub Actions CI/CD
