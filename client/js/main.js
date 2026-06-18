@@ -1886,3 +1886,36 @@ document.head.appendChild(errorStyles);
 document.addEventListener('DOMContentLoaded', () => {
   ErrorHandler.init();
 });
+
+
+// ============================================================
+// 音效系统占位 Sound System Placeholder
+// ============================================================
+
+const SoundManager = {
+  enabled: true,
+  volume: 0.7,
+  sounds: {},
+  
+  init() {
+    console.log('音效系统初始化（占位）');
+  },
+  
+  play(soundId) {
+    if (!this.enabled) return;
+    // 预留音效播放接口
+    console.log(`播放音效: ${soundId}`);
+  },
+  
+  setVolume(volume) {
+    this.volume = Math.max(0, Math.min(1, volume));
+  },
+  
+  toggle() {
+    this.enabled = !this.enabled;
+    return this.enabled;
+  },
+};
+
+// 导出
+window.SoundManager = SoundManager;
