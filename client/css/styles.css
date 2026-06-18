@@ -1125,3 +1125,243 @@ kbd {
   color: var(--text-secondary);
   letter-spacing: 2px;
 }
+
+/* ============================================================
+   Loading Screen - 加载界面
+   ============================================================ */
+.loading-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--bg-abyss);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease;
+}
+
+.loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-content {
+  text-align: center;
+  width: 320px;
+}
+
+.loading-title h1 {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(212, 168, 67, 0.4);
+  margin-bottom: 4px;
+  animation: title-glow 3s ease-in-out infinite;
+}
+
+.loading-title p {
+  font-family: var(--font-medieval);
+  font-size: 16px;
+  color: var(--text-dim);
+  letter-spacing: 8px;
+  margin-bottom: 40px;
+}
+
+.loading-bar {
+  height: 4px;
+  background: var(--border-stone);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.loading-progress {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.loading-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.loading-tips {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ============================================================
+   Settings Panel - 设置面板
+   ============================================================ */
+.settings-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  max-width: 95vw;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-stone);
+  border-radius: 4px;
+  z-index: 1000;
+  display: none;
+}
+
+.settings-panel.open {
+  display: block;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-stone);
+}
+
+.settings-header h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--gold);
+}
+
+.settings-content {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section h3 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(42, 37, 32, 0.3);
+}
+
+.setting-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.setting-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting-control input[type="range"] {
+  width: 100px;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--border-stone);
+  border-radius: 2px;
+  outline: none;
+}
+
+.setting-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--gold);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.setting-control input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  -webkit-appearance: none;
+  background: var(--bg-abyss);
+  border: 1px solid var(--border-stone);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+}
+
+.setting-control input[type="checkbox"]:checked {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.setting-control input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  color: var(--bg-abyss);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.settings-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-stone);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-settings {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border-stone);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-settings:hover {
+  border-color: var(--gold-dim);
+  color: var(--gold);
+}
+
+.btn-settings.primary {
+  background: var(--gold-dim);
+  border-color: var(--gold);
+  color: var(--bg-abyss);
+}
+
+.btn-settings.primary:hover {
+  background: var(--gold);
+}
+
+/* FPS Counter */
+.fps-counter {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: rgba(0,0,0,0.5);
+  padding: 2px 8px;
+  border-radius: 2px;
+  display: none;
+}
+
+.fps-counter.visible {
+  display: block;
+}

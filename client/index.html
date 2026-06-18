@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>深渊地牢 | Abyss Dungeon</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=MedievalSharp&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
@@ -226,8 +227,24 @@
   <div id="lootToast" class="loot-toast"></div>
 </div>
 
+<script src="js/config.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/tips.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
+
+<!-- ============ 加载界面 Loading Screen ============ -->
+<div id="loadingScreen" class="loading-overlay">
+  <div class="loading-content">
+    <div class="loading-title">
+      <h1>深渊地牢</h1>
+      <p>ABYSS DUNGEON</p>
+    </div>
+    <div class="loading-bar">
+      <div class="loading-progress" id="loadingProgress"></div>
+    </div>
+    <div class="loading-text" id="loadingText">正在连接服务器...</div>
+    <div class="loading-tips" id="loadingTip">提示: 使用 WASD 移动角色</div>
+  </div>
+</div>

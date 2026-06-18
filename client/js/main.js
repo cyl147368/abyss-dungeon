@@ -1574,3 +1574,64 @@ startGame = function() {
   originalStartGame();
   initGameTips();
 };
+
+
+// ============================================================
+// 加载界面 Loading Screen
+// ============================================================
+
+const LoadingScreen = {
+  element: null,
+  progressBar: null,
+  textElement: null,
+  tipElement: null,
+  progress: 0,
+  
+  init() {
+    this.element = document.getElementById('loadingScreen');
+    this.progressBar = document.getElementById('loadingProgress');
+    this.textElement = document.getElementById('loadingText');
+    this.tipElement = document.getElementById('loadingTip');
+    
+    // 随机加载提示
+    const tips = [
+      '提示: 使用 WASD 移动角色',
+      '提示: 按 Q 和 E 释放技能',
+      '提示: 按 R 使用药水恢复生命',
+      '提示: 按 I 打开背包装备物品',
+      '提示: 按 Enter 与队友聊天',
+      '提示: 按 Tab 查看排行榜',
+      '提示: 小地图显示怪物和队友位置',
+      '提示: Boss怪物会掉落稀有装备',
+    ];
+    
+    if (this.tipElement) {
+      this.tipElement.textContent = tips[Math.floor(Math.random() * tips.length)];
+    }
+  },
+  
+  setProgress(value, text) {
+    this.progress = Math.min(100, Math.max(0, value));
+    if (this.progressBar) {
+      this.progressBar.style.width = this.progress + '%';
+    }
+    if (text && this.textElement) {
+      this.textElement.textContent = text;
+    }
+  },
+  
+  hide() {
+    if (this.element) {
+      this.element.classList.add('hidden');
+      setTimeout(() => {
+        this.element.style.display = 'none';
+      }, 500);
+    }
+  },
+};
+
+// 在DOMContentLoaded时初始化
+document.addEventListener('DOMContentLoaded', () => {
+  LoadingScreen.init();
+  LoadingScreen.setProgress(10, '正在加载资源...');
+});
