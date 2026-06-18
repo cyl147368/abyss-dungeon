@@ -1,0 +1,85 @@
+# 深渊地牢 - GitHub Actions 自动部署
+# Abyss Dungeon - GitHub Actions Auto Deploy
+#
+# 配置说明:
+# 1. 在GitHub仓库设置中添加以下Secrets:
+#    - DEPLOY_HOST: 服务器地址 (121.4.97.25)
+#    - DEPLOY_USER: 用户名 (ubuntu)
+#    - DEPLOY_KEY: SSH私钥
+#
+# 2. 生成SSH密钥对:
+#    ssh-keygen -t ed25519 -f deploy_key -N ""
+#    将 deploy_key.pub 内容添加到服务器 ~/.ssh/authorized_keys
+#    将 deploy_key 内容添加到 GitHub Secrets (DEPLOY_KEY)
+
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Run tests
+        run: |
+          npm install
+          node server/index.js &
+          sleep 2
+          node test.js
+          pkill -f "node server/index.js" || true
+      
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            cd /home/ubuntu
+            
+            # 克隆或更新仓库
+            if [ -d "abyss-dungeon" ]; then
+              cd abyss-dungeon
+              git pull origin master
+            else
+              git clone https://github.com/cyl147368/abyss-dungeon.git
+              cd abyss-dungeon
+            fi
+            
+            # 安装依赖
+            npm install --production
+            
+            # 停止旧进程
+            pkill -f "node server/index.js" 2>/dev/null || true
+            sleep 1
+            
+            # 启动服务器
+            nohup node server/index.js > game.log 2>&1 &
+            
+            # 等待启动
+            sleep 2
+            
+            # 验证部署
+            if curl -s http://localhost:3000/health > /dev/null; then
+              echo "✅ 部署成功！"
+            else
+              echo "❌ 部署失败"
+              exit 1
+            fi
+      
+      - name: Verify deployment
+        run: |
+          echo "🎮 游戏已部署到 ${{ secrets.DEPLOY_HOST }}:3000"
