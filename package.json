@@ -1,18 +1,27 @@
 {
   "name": "abyss-dungeon",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "深渊地牢 - 多人合作地牢探险网页游戏 | Abyss Dungeon - Multiplayer Co-op Dungeon Crawler",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node server/index.js"
+    "dev": "node server/index.js",
+    "test": "node test.js",
+    "lint": "echo 'Linting...'",
+    "health": "curl -s http://localhost:3000/health"
   },
   "dependencies": {
     "ws": "^8.14.2"
   },
+  "devDependencies": {},
   "engines": {
     "node": ">=16.0.0"
   },
+  "keywords": ["game", "multiplayer", "dungeon", "websocket", "node.js"],
   "author": "Abyss Dungeon Team",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cyl147368/abyss-dungeon.git"
+  }
 }
