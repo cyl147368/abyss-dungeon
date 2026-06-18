@@ -1547,3 +1547,30 @@ function createVirtualButtons() {
 document.addEventListener('DOMContentLoaded', () => {
   initTouchControls();
 });
+
+
+// ============================================================
+// 提示系统初始化 Tips System Initialization
+// ============================================================
+
+/**
+ * 初始化游戏提示
+ */
+function initGameTips() {
+  // 初始化提示系统
+  if (window.GameTips) {
+    GameTips.init();
+    
+    // 显示初始提示
+    setTimeout(() => GameTips.show('movement'), 1000);
+    setTimeout(() => GameTips.show('attack'), 3000);
+    setTimeout(() => GameTips.show('skills'), 5000);
+  }
+}
+
+// 在开始游戏时初始化提示
+const originalStartGame = startGame;
+startGame = function() {
+  originalStartGame();
+  initGameTips();
+};
