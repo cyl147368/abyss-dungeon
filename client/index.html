@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深渊地牢 | Abyss Dungeon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=MedievalSharp&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ============ 登录界面 Login Screen ============ -->
+<div id="loginScreen" class="screen active">
+  <div class="login-particles" id="loginParticles"></div>
+  <div class="login-container">
+    <div class="login-header">
+      <div class="rune-decoration left"></div>
+      <h1 class="game-title">深渊地牢</h1>
+      <p class="game-subtitle">ABYSS DUNGEON</p>
+      <div class="rune-decoration right"></div>
+    </div>
+
+    <div class="login-form">
+      <div class="input-group">
+        <label for="playerName">冒险者之名</label>
+        <input type="text" id="playerName" maxlength="12" placeholder="输入你的名字..." autocomplete="off">
+        <div class="input-glow"></div>
+      </div>
+
+      <div class="class-selection">
+        <h2>选择职业</h2>
+        <div class="class-grid" id="classGrid">
+          <div class="class-card" data-class="warrior">
+            <div class="class-icon">⚔️</div>
+            <div class="class-name">战士</div>
+            <div class="class-desc">近战之王，攻守兼备</div>
+            <div class="class-stats">
+              <span class="stat-hp">❤️ 200</span>
+              <span class="stat-atk">⚔️ 25</span>
+              <span class="stat-def">🛡️ 20</span>
+            </div>
+          </div>
+          <div class="class-card" data-class="mage">
+            <div class="class-icon">🔮</div>
+            <div class="class-name">法师</div>
+            <div class="class-desc">元素之力，远程毁灭</div>
+            <div class="class-stats">
+              <span class="stat-hp">❤️ 100</span>
+              <span class="stat-atk">⚔️ 35</span>
+              <span class="stat-def">🛡️ 5</span>
+            </div>
+          </div>
+          <div class="class-card" data-class="archer">
+            <div class="class-icon">🏹</div>
+            <div class="class-name">弓箭手</div>
+            <div class="class-desc">百步穿杨，机动灵活</div>
+            <div class="class-stats">
+              <span class="stat-hp">❤️ 120</span>
+              <span class="stat-atk">⚔️ 30</span>
+              <span class="stat-def">🛡️ 10</span>
+            </div>
+          </div>
+          <div class="class-card" data-class="priest">
+            <div class="class-icon">✨</div>
+            <div class="class-name">牧师</div>
+            <div class="class-desc">神圣治愈，守护同伴</div>
+            <div class="class-stats">
+              <span class="stat-hp">❤️ 130</span>
+              <span class="stat-atk">⚔️ 15</span>
+              <span class="stat-def">🛡️ 12</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button id="startBtn" class="btn-start" disabled>
+        <span class="btn-text">进入深渊</span>
+        <span class="btn-glow"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 游戏界面 Game Screen ============ -->
+<div id="gameScreen" class="screen">
+  <!-- 游戏画布 -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD - 顶部 Top HUD -->
+  <div id="hud-top" class="hud-bar top">
+    <div class="hud-left">
+      <div class="player-info">
+        <div class="player-portrait" id="playerPortrait">⚔️</div>
+        <div class="player-details">
+          <div class="player-name-hud" id="hudName">冒险者</div>
+          <div class="player-level">Lv.<span id="hudLevel">1</span></div>
+        </div>
+      </div>
+      <div class="bars">
+        <div class="bar-container hp-bar">
+          <div class="bar-fill" id="hpFill"></div>
+          <div class="bar-text"><span id="hpText">100/100</span></div>
+        </div>
+        <div class="bar-container mp-bar">
+          <div class="bar-fill" id="mpFill"></div>
+          <div class="bar-text"><span id="mpText">50/50</span></div>
+        </div>
+        <div class="bar-container xp-bar">
+          <div class="bar-fill" id="xpFill"></div>
+          <div class="bar-text">EXP <span id="xpText">0/50</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-center">
+      <div class="gold-display">
+        <span class="gold-icon">💰</span>
+        <span id="goldAmount">0</span>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <div class="minimap-container">
+        <canvas id="minimapCanvas" width="180" height="140"></canvas>
+        <div class="minimap-frame"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 技能栏 Skill Bar -->
+  <div id="skillBar" class="hud-bar bottom">
+    <div class="skill-slot" id="skill0" data-key="左键">
+      <div class="skill-icon">⚔️</div>
+      <div class="skill-cooldown" id="cd0"></div>
+      <div class="skill-key">左键</div>
+    </div>
+    <div class="skill-slot" id="skill1" data-key="Q">
+      <div class="skill-icon">🔥</div>
+      <div class="skill-cooldown" id="cd1"></div>
+      <div class="skill-key">Q</div>
+    </div>
+    <div class="skill-slot" id="skill2" data-key="W">
+      <div class="skill-icon">❄️</div>
+      <div class="skill-cooldown" id="cd2"></div>
+      <div class="skill-key">W</div>
+    </div>
+    <div class="skill-slot" id="skill3" data-key="E">
+      <div class="skill-icon">⚡</div>
+      <div class="skill-cooldown" id="cd3"></div>
+      <div class="skill-key">E</div>
+    </div>
+    <div class="skill-divider"></div>
+    <div class="skill-slot potion-slot" id="potionSlot" data-key="R">
+      <div class="skill-icon">🧪</div>
+      <div class="skill-count" id="potionCount">3</div>
+      <div class="skill-key">R</div>
+    </div>
+  </div>
+
+  <!-- 背包面板 Inventory Panel -->
+  <div id="inventoryPanel" class="side-panel right-panel">
+    <div class="panel-header">
+      <h3>📦 背包</h3>
+      <button class="panel-close" id="closeInventory">✕</button>
+    </div>
+    <div class="panel-content">
+      <div class="equipment-section">
+        <h4>装备栏</h4>
+        <div class="equipment-slots">
+          <div class="equip-slot" id="equipWeapon" data-slot="weapon">
+            <span class="equip-label">武器</span>
+            <span class="equip-item">-</span>
+          </div>
+          <div class="equip-slot" id="equipArmor" data-slot="armor">
+            <span class="equip-label">护甲</span>
+            <span class="equip-item">-</span>
+          </div>
+          <div class="equip-slot" id="equipAccessory" data-slot="accessory">
+            <span class="equip-label">饰品</span>
+            <span class="equip-item">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="inventory-section">
+        <h4>物品</h4>
+        <div class="inventory-grid" id="inventoryGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 聊天面板 Chat Panel -->
+  <div id="chatPanel" class="chat-panel">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-wrap">
+      <input type="text" id="chatInput" placeholder="按 Enter 聊天..." maxlength="200">
+    </div>
+  </div>
+
+  <!-- 排行榜 Leaderboard -->
+  <div id="leaderboard" class="leaderboard-panel">
+    <div class="panel-header"><h3>🏆 排行榜</h3></div>
+    <div class="leaderboard-list" id="leaderboardList"></div>
+  </div>
+
+  <!-- 死亡界面 Death Overlay -->
+  <div id="deathOverlay" class="overlay">
+    <div class="death-content">
+      <h2>你已阵亡</h2>
+      <p>将在 <span id="respawnTimer">5</span> 秒后复活...</p>
+    </div>
+  </div>
+
+  <!-- 操作提示 Controls Help -->
+  <div id="controlsHelp" class="controls-help">
+    <div class="control-item"><kbd>WASD</kbd> 移动</div>
+    <div class="control-item"><kbd>鼠标左键</kbd> 攻击</div>
+    <div class="control-item"><kbd>Q W E</kbd> 技能</div>
+    <div class="control-item"><kbd>R</kbd> 使用药水</div>
+    <div class="control-item"><kbd>I</kbd> 背包</div>
+    <div class="control-item"><kbd>Enter</kbd> 聊天</div>
+    <div class="control-item"><kbd>Tab</kbd> 排行榜</div>
+  </div>
+
+  <!-- 拾取提示 Loot Pickup -->
+  <div id="lootToast" class="loot-toast"></div>
+</div>
+
+<script src="js/main.js"></script>
+</body>
+</html>
